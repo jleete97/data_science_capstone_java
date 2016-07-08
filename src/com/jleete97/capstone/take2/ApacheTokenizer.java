@@ -13,4 +13,8 @@ public class ApacheTokenizer {
 			handler.handle(tokenStr);
 		}
 	}
+	
+	public String[] tokenize(String s) {
+		return (String[]) tokenizer.process(s);
+	}
 }

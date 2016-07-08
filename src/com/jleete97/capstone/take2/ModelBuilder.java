@@ -9,6 +9,8 @@ import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.jleete97.capstone.full.TokenizerMiddle;
+
 /**
  * Build a model, as a hierarchy of {@link Node}s, from text inputs.
  * <p>
@@ -21,8 +23,9 @@ import java.util.Map;
  */
 public class ModelBuilder {
 
-	private Map<Integer, String> tokens;
-	private Map<String, Integer> tokensReversed;
+	private TokenizerMiddle tokenizer = new TokenizerMiddle();
+	private Map<Integer, Token> tokens;
+	private Map<String, Integer> tokenLookup;
 	private int gramLength = 3;
 
 	/** Root {@link Node} of hierarchical {@code Map} that's our model. */
@@ -31,10 +34,16 @@ public class ModelBuilder {
 	
 	private void incorporateTokens(String[] tokens) {
 		for (int i = 0; i < tokens.length; i++) {
-			int start = Math.max(i - gramLength, 0);
-			
-			root.add(tokens, start, i);
+			addNextToken(tokens, i);
 		}
+	}
+	
+	private void addNextToken(String[] tokens, int nextTokenPos) {
+		// start is the first token that we recognize in the tokens preceding
+		// nextTokenPos. start may be -1, representing the "beginning of
+		// sentence" token "<s>".
+		int start = Math.max(nextTokenPos - gramLength, -1);
+		root.add(tokens, nextTokenPos, start);
 	}
 	
 	/** Read {@code reader} line by line, incorporate contents into model. */
@@ -45,7 +54,7 @@ public class ModelBuilder {
 		
 		try {
 			while ((line = reader.readLine()) != null) {
-				System.out.println("\r " + i++);
+				System.out.print("\r " + i++);
 				String[] sentences = sentences(line);
 				
 				for (String sentence : sentences) {
@@ -69,7 +78,8 @@ public class ModelBuilder {
 	
 	/** Split a sentence into {@code String} tokens. */
 	private String[] tokens(String sentence) {
-		return sentence.toLowerCase().split(" ");  // This should actually be about right.
+		return (String[]) tokenizer.process(sentence);
+//		return sentence.toUpperCase().split(" ");  // This should actually be about right.
 	}
 
 	/** Dump the {@link Node} hierarchy to the {@code writer}. */
@@ -79,16 +89,42 @@ public class ModelBuilder {
 
 	/** Dump the specified {@link Node} and its descendants to the {@code writer}. */
 	private void dump(PrintWriter writer, Node node, int depth) {
-		for (int tokenIndex : tokens.keySet()) {
-			indent(writer, depth);
-			writer.print(tokens.get(tokenIndex));
+		if (node != null) {
+			if (node.hasCounts()) {
+				indent(writer, depth);
+				writer.print("{ ");
+				boolean first = true;
+				
+				for (Map.Entry<Integer, Long> entry : node.getCounts().entrySet()) {
+					if (entry.getKey() == null) {
+						continue;
+					}
+					if (!first) {
+						writer.print(", ");
+					}
+					writer.print(tokens.get(entry.getKey()).getToken());
+					writer.print(" : ");
+					writer.print(entry.getValue());
+					first = false;
+				}
+				writer.println(" }");
+			}
 			
-			if (node.getMap() != null) {
-				dump(writer, node.getMap().get(tokenIndex), depth + 1);
+			if (node.hasTokenMap()) {
+				for (Integer tokenIndex : node.getMap().keySet()) {
+					indent(writer, depth);
+					Token token = tokens.get(tokenIndex);
+					writer.print(token.getToken());
+					writer.print(" ");
+					writer.print(node.getTotal());
+					writer.println();
+					
+					dump(writer, node.getMap().get(tokenIndex), depth + 1);
+				}
 			}
 		}
 	}
-	
+
 	/** Indent {@code writer} to account for depth in {@code Node} hierarchy. */
 	private void indent(PrintWriter writer, int depth) {
 		for (int i = 0; i < depth; i++) {
@@ -96,6 +132,18 @@ public class ModelBuilder {
 		}
 	}
 	
+	private void dump(PrintWriter writer, Map<Integer, Long> counts, int depth) {
+		indent(writer, depth + 1);
+		for (Map.Entry<Integer, Long> entry : counts.entrySet()) {
+			Token token = tokens.get(entry.getKey());
+			writer.print(token.getToken());
+			writer.print(" ");
+			writer.print(entry.getValue());
+			writer.print("; ");
+		}
+		writer.println();
+	}
+
 	/** Close a potentially {@code null} {@link Closeable} without {@code Exception} or fuss. */
 	private static void closeQuietly(Closeable closeable) {
 		if (closeable != null) {
@@ -107,16 +155,16 @@ public class ModelBuilder {
 		}
 	}
 	
-	public Map<Integer, String> getTokens() {
+	public Map<Integer, Token> getTokens() {
 		return tokens;
 	}
-	public void setTokens(Map<Integer, String> tokens) {
+	public void setTokens(Map<Integer, Token> tokens) {
 		this.tokens = tokens;
 		
 		// Set up reverse lookup map as well.
-		this.tokensReversed = new HashMap<>();
-		for (Map.Entry<Integer, String> entry : tokens.entrySet()) {
-			tokensReversed.put(entry.getValue(), entry.getKey());
+		this.tokenLookup = new HashMap<>();
+		for (Map.Entry<Integer, Token> entry : tokens.entrySet()) {
+			tokenLookup.put(entry.getValue().getToken(), entry.getKey());
 		}
 	}
 	
@@ -141,19 +189,19 @@ public class ModelBuilder {
 		
 		System.out.println("Processing token file: " + args[0]);
 		TokenFileBuilder tokenFileBuilder = new TokenFileBuilder();
-		Map<Integer, String> tokens = tokenFileBuilder.readTokens(args[0]);
+		Map<Integer, Token> tokens = tokenFileBuilder.readTokensFromTokenAnalysisFile(args[0]);
 		
 		ModelBuilder modelBuilder = new ModelBuilder();
 		modelBuilder.setTokens(tokens);
 		
 		// TODO find a cleaner way to make token maps available to Nodes.
 		Node.tokens = modelBuilder.getTokens();
-		Node.tokensReversed = modelBuilder.tokensReversed;
+		Node.tokenLookup = modelBuilder.tokenLookup;
 		
 		try {
 			PrintWriter writer = new PrintWriter(args[args.length - 1]);
 			
-			for (int i = 0; i < args.length - 1; i++) {
+			for (int i = 1; i < args.length - 1; i++) {
 				try {
 					System.out.println("Processing data file: " + args[i]);
 					BufferedReader reader = new BufferedReader(new FileReader(args[i]));

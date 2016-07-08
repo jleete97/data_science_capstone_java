@@ -39,15 +39,15 @@ public class TokenFileBuilder {
 		}
 	}
 	
-	private Map<String, InitialToken> map = new HashMap<>();
+	private Map<String, Token> map = new HashMap<>();
 //	private FirstTokenizer tokenizer = new FirstTokenizer();
 	private ApacheTokenizer tokenizer = new ApacheTokenizer();
 	private TokenHandler handler = new TokenHandler() {
 		public void handle(String tokenStr) {
 			if (validToken(tokenStr)) {
-				InitialToken token = map.get(tokenStr);
+				Token token = map.get(tokenStr);
 				if (token == null) {
-					token = new InitialToken(tokenStr);
+					token = new Token(tokenStr);
 					map.put(tokenStr,  token);
 				}
 				token.increment();
@@ -90,29 +90,37 @@ public class TokenFileBuilder {
 	}
 	
 	public void dump(PrintWriter writer) {
-		List<InitialToken> tokenList = new ArrayList<>();
+		List<Token> tokenList = new ArrayList<>();
 		tokenList.addAll(map.values());
 		Collections.sort(tokenList);
 		
-		for (InitialToken initialToken : tokenList) {
+		for (Token initialToken : tokenList) {
 			writer.print(initialToken.getToken());
 			writer.print(" ");
 			writer.println(initialToken.getCount());
 		}
 	}
 	
-	public Map<Integer, String> readTokens(String filename) {
-		Map<Integer, String> map = new HashMap<>();
+	public Map<Integer, Token> readTokensFromTokenAnalysisFile(String filename) {
+		Map<Integer, Token> map = new HashMap<>();
 		String line;
 		
 		try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
 
+			map.put(Integer.valueOf(Token.BEGIN_SENTENCE_INDEX),
+					new Token(Token.BEGIN_SENTENCE));
+			
+			int i = 0;
+			
 			while ((line = reader.readLine()) != null) {
 				int pos = line.lastIndexOf(' ');
 				if (pos != -1) {
 					String token = line.substring(0, pos);
 					int frequency = Integer.parseInt(line.substring(pos + 1));
-					map.put(frequency, token);
+					Token tokenModel = new Token(token);
+					tokenModel.setCount(frequency);
+					map.put(i, tokenModel);
+					i++;
 				}
 			}
 		} catch (IOException e) {

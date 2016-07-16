@@ -21,7 +21,7 @@ public class SentencingMiddle extends Middle {
 	}
 	
 	@Override
-	protected Object process(String line) {
+	public Object process(String line) {
 		String[] sentences = sentenceDetector.sentDetect(line);
 		return sentences;
 	}

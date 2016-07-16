@@ -9,6 +9,7 @@ import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.jleete97.capstone.full.SentencingMiddle;
 import com.jleete97.capstone.full.TokenizerMiddle;
 
 /**
@@ -24,6 +25,7 @@ import com.jleete97.capstone.full.TokenizerMiddle;
 public class ModelBuilder {
 
 	private TokenizerMiddle tokenizer = new TokenizerMiddle();
+	private SentencingMiddle sentencer = new SentencingMiddle();
 	private Map<Integer, Token> tokens;
 	private Map<String, Integer> tokenLookup;
 	private int gramLength = 3;
@@ -73,7 +75,8 @@ public class ModelBuilder {
 	
 	/** Split a long line of text into sentences. */
 	private String[] sentences(String line) {
-		return line.split("\\.");  //TODO replace with Apache sentence recognition
+		return (String[]) sentencer.process(line);
+//		return line.split("\\.");  //TODO replace with Apache sentence recognition
 	}
 	
 	/** Split a sentence into {@code String} tokens. */

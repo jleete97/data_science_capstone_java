@@ -10,25 +10,43 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.util.Random;
 
 import opennlp.tools.sentdetect.SentenceDetectorME;
 import opennlp.tools.sentdetect.SentenceModel;
 
 public class Sentencer {
 
+	private static Random random = new Random();
+	
 	public static void main(String[] args) {
 		if (args.length < 1) {
 			System.out.println("Must specify input directory");
 			return;
 		}
 		
+		double fraction = 1.0;
+		if (args.length > 1) {
+			try {
+				fraction = Double.parseDouble(args[1]);
+				if (fraction <= 0 || fraction > 1) {
+					throw new IllegalArgumentException("Fraction must be greater than 0, less than or equal to 1");
+				}
+			} catch (Exception e) {
+				System.err.println("Second argument '" + args[1] + "' not a fraction 0-1: " + e.getMessage());
+				fraction = 1;
+			}
+		}
+		
+		System.out.println("Sentencer input directory '" + args[0] + "', fraction " + fraction);
+		
 		try {
 			SentenceModel model = loadSentenceModel();
-			sentence(model, args[0]);
+			sentence(model, args[0], fraction);
 			System.out.println("Processed directory '" + args[0] + "'.");
 		}
 		catch (Exception e) {
-			System.out.println("Error: " + e.getMessage());
+			System.err.println("Error: " + e.getMessage());
 		}
 	}
 
@@ -43,7 +61,7 @@ public class Sentencer {
 		}
 	}
 
-	private static void sentence(SentenceModel model, String inputDirectory) {
+	private static void sentence(SentenceModel model, String inputDirectory, double fraction) {
 		
 		File file = new File(inputDirectory);
 		if (!file.exists() || !file.isDirectory()) {
@@ -71,6 +89,7 @@ public class Sentencer {
 		
 		for (File textFile : textFiles) {
 			String outputPath = outputDirName + File.separator + textFile.getName();
+			System.out.println("Writing '" + outputPath + "'...");
 			
 			try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(textFile)));
 					BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputPath)))) {
@@ -84,7 +103,7 @@ public class Sentencer {
 					for (String sentence : sentences) {
 						if (sentence != null) {
 							sentence = sentence.trim();
-							if (sentence.length() > 0) {
+							if ((sentence.length() > 0) && (random.nextDouble() <= fraction)) {
 								writer.write(sentence.trim());
 								writer.newLine();
 							}
@@ -95,5 +114,7 @@ public class Sentencer {
 				System.out.println("Error processing '" + textFile + "' into '" + outputPath + "': " + e.getMessage());
 			}
 		}
+		
+		System.out.println("Done.");
 	}
 }
